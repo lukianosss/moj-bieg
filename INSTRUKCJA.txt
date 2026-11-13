@@ -1,0 +1,15 @@
+MÓJ BIEG — SYNC GARMIN
+
+1. Rozpakuj ZIP. W repozytorium lukianosss/moj-bieg umieść index.html, sync_garmin.py oraz folder .github/workflows/garmin.yml (zachowaj strukturę katalogów).
+2. GitHub → repo moj-bieg → Settings → Secrets and variables → Actions → New repository secret.
+   Dodaj GARMIN_API_KEY = Twój osobisty klucz Garmin (nie wklejaj do kodu ani czatu).
+   Dodaj SYNC_PASSWORD = TWOJE własne silne hasło (minimum 16 znaków), inne niż hasło do GitHuba.
+3. GitHub → Actions → Synchronizacja Garmin → Run workflow → Run workflow.
+4. Poczekaj na zielony wynik. Sprawdź, czy w repo powstał garmin-data.enc.json.
+5. Otwórz https://lukianosss.github.io/moj-bieg/ i wpisz SYNC_PASSWORD w polu hasła, kliknij Pobierz aktualne dane.
+6. Po treningu: Garmin Connect musi najpierw zsynchronizować zegarek. Potem kliknij Uruchom synchronizację, w GitHub Actions wybierz Run workflow, poczekaj na zakończenie, wróć do apki i kliknij Pobierz aktualne dane.
+
+UWAGA: w tym wydaniu przycisk otwiera GitHub Actions, nie uruchamia workflow bezpośrednio — to celowe, aby nie umieszczać tokenu GitHub w przeglądarce.
+Repo jest publiczne, więc zaszyfrowany plik może pobrać każdy, ale bez silnego hasła nie powinien odczytać danych. Nie publikuj klucza Garmin ani hasła. Po odszyfrowaniu dane zostają w localStorage na telefonie; chroń telefon i rób kopie.
+Automatyczna synchronizacja co ok. 3 godziny jest orientacyjna — GitHub może opóźniać zadania.
+Wersja pobiera 14 dni HRV/snu/Body Battery. Import treningów TCX/GPX/CSV pozostaje bez zmian; automatyczny import aktywności jest kolejnym etapem.
