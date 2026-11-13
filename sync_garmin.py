@@ -112,7 +112,31 @@ def main():
             if value is not None:
                 days[d]['battery'] = value
 
-    payload = {'updated_at': dt.datetime.now(dt.timezone.utc).isoformat(), 'days': days}
+    # Activity list: returns activity summaries, distances in metres, duration in seconds.
+    activities = []
+    raw_activities = safe('activities', '/activitylist-service/activities/search/activities?start=0&limit=30')
+    if isinstance(raw_activities, dict):
+        raw_activities = raw_activities.get('activities', raw_activities.get('data', []))
+    if isinstance(raw_activities, list):
+        for row in raw_activities:
+            if not isinstance(row, dict):
+                continue
+            kind = row.get('activityType') or {}
+            kind = (kind.get('typeKey') or kind.get('typeId') or '') if isinstance(kind, dict) else str(kind)
+            # Running activities only; exclude cycling/walking and other sports.
+            if 'run' not in str(kind).lower():
+                continue
+            activity_id = row.get('activityId')
+            date = row.get('startTimeGMT') or row.get('startTimeLocal')
+            distance = num(row.get('distance'))
+            duration = num(row.get('movingDuration')) or num(row.get('duration'))
+            if not all([activity_id, date, distance, duration]):
+                continue
+            activities.append({'id': str(activity_id), 'date': str(date).replace(' ', 'T') + ('Z' if str(date).endswith('GMT') or row.get('startTimeGMT') else ''),
+                               'distance': round(distance / 1000, 4), 'duration': duration,
+                               'hr': num(row.get('averageHR')), 'name': str(row.get('activityName') or 'Bieg Garmin')[:120]})
+
+    payload = {'updated_at': dt.datetime.now(dt.timezone.utc).isoformat(), 'days': days, 'activities': activities}
     if not any(any(v is not None for v in day.values()) for day in days.values()):
         raise RuntimeError('No health values returned; refusing to publish empty data. API errors: ' + '; '.join(errors))
 
