@@ -57,7 +57,7 @@ def main():
     today = dt.date.today()
     start = today - dt.timedelta(days=13)
     s, e = start.isoformat(), today.isoformat()
-    days = {(start + dt.timedelta(days=i)).isoformat(): {'hrv': None, 'sleep': None, 'battery': None} for i in range(14)}
+    days = {(start + dt.timedelta(days=i)).isoformat(): {'hrv': None, 'sleep': None, 'battery': None, 'resting_hr': None, 'vo2max': None} for i in range(14)}
     errors = []
 
     def safe(name, path):
@@ -112,6 +112,27 @@ def main():
             if value is not None:
                 days[d]['battery'] = value
 
+    # Additional metrics are best-effort. Garmin may omit or reject these endpoints.
+    # Missing data stays null; never invent VO2max, race predictions or recovery.
+    metrics = safe('vo2max', f'/metrics-service/metrics/maxmet/daily/{s}/{e}')
+    def rows_of(obj):
+        if isinstance(obj, list):
+            return obj
+        if isinstance(obj, dict):
+            for k in ('maxMetSummaries', 'maxMetMetrics', 'metrics', 'dailyMetrics', 'data'):
+                if isinstance(obj.get(k), list):
+                    return obj[k]
+        return []
+    for row in rows_of(metrics):
+        if not isinstance(row, dict):
+            continue
+        d = str(row.get('calendarDate') or row.get('date') or '')[:10]
+        item = row.get('maxMetSummary') or row
+        if d in days and isinstance(item, dict):
+            value = first(num(item.get('vo2MaxValue')), num(item.get('vo2Max')), num(item.get('genericVo2Max')))
+            if value is not None and 15 <= value <= 95:
+                days[d]['vo2max'] = value
+
     # Activity list: returns activity summaries, distances in metres, duration in seconds.
     activities = []
     raw_activities = safe('activities', '/activitylist-service/activities/search/activities?start=0&limit=30')
@@ -135,6 +156,18 @@ def main():
             activities.append({'id': str(activity_id), 'date': str(date).replace(' ', 'T') + ('Z' if str(date).endswith('GMT') or row.get('startTimeGMT') else ''),
                                'distance': round(distance / 1000, 4), 'duration': duration,
                                'hr': num(row.get('averageHR')), 'name': str(row.get('activityName') or 'Bieg Garmin')[:120]})
+
+    # Some activity summaries include VO2max and resting HR; use only dated values.
+    if isinstance(raw_activities, list):
+        for row in raw_activities:
+            if not isinstance(row, dict):
+                continue
+            d = str(row.get('startTimeLocal') or row.get('startTimeGMT') or '')[:10]
+            if d not in days:
+                continue
+            vo2 = first(num(row.get('vO2MaxValue')), num(row.get('vo2MaxValue')))
+            if days[d]['vo2max'] is None and vo2 is not None and 15 <= vo2 <= 95:
+                days[d]['vo2max'] = vo2
 
     payload = {'updated_at': dt.datetime.now(dt.timezone.utc).isoformat(), 'days': days, 'activities': activities}
     if not any(any(v is not None for v in day.values()) for day in days.values()):
